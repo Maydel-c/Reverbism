@@ -34,8 +34,8 @@
   <EXPORTFORMATS>
     <XCODE_MAC targetFolder="Builds/MacOSX">
       <CONFIGURATIONS>
-        <CONFIGURATION isDebug="1" name="Debug" targetName="Reverbism"/>
-        <CONFIGURATION isDebug="0" name="Release" targetName="Reverbism"/>
+        <CONFIGURATION isDebug="1" name="Debug" targetName="Reverbism" codeSigningIdentity="Apple Development"/>
+        <CONFIGURATION isDebug="0" name="Release" targetName="Reverbism" codeSigningIdentity="Apple Development"/>
       </CONFIGURATIONS>
       <MODULEPATHS>
         <MODULEPATH id="juce_audio_basics" path="../../../../Downloads/JUCE/modules"/>

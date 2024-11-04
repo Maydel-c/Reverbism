@@ -11,6 +11,14 @@
 #include <JuceHeader.h>
 #include "PluginProcessor.h"
 
+struct RotarySlider : juce::Slider
+{
+    RotarySlider() : juce::Slider(juce::Slider::SliderStyle::RotaryHorizontalVerticalDrag,
+                                  juce::Slider::TextEntryBoxPosition::NoTextBox)
+    {
+    }
+};
+
 //==============================================================================
 /**
 */
@@ -28,6 +36,8 @@ private:
     // This reference is provided as a quick way for your editor to
     // access the processor object that created it.
     ReverbismAudioProcessor& audioProcessor;
+    
+    RotarySlider roomSizeSlider, widthSlider, dampnessSlider, drywetSlider;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ReverbismAudioProcessorEditor)
 };
