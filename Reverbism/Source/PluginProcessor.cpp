@@ -7,7 +7,60 @@
 */
 
 #include "PluginProcessor.h"
+#include "ParamIDs.h"
 #include "PluginEditor.h"
+//=============================================================================
+
+static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
+{
+    juce::AudioProcessorValueTreeState::ParameterLayout layout;
+
+    const auto percentageAttributes = juce::AudioParameterFloatAttributes().withStringFromValueFunction (
+        // Format the number to always display three digits like "0.01 %", "10.0 %", "100 %".
+        [] (auto value, auto)
+        {
+            constexpr auto unit = " %";
+
+            if (auto v { std::round (value * 100.0f) / 100.0f }; v < 10.0f)
+                return juce::String { v, 2 } + unit;
+
+            if (auto v { std::round (value * 10.0f) / 10.0f }; v < 100.0f)
+                return juce::String { v, 1 } + unit;
+
+            return juce::String { std::round (value) } + unit;
+        });
+
+    layout.add (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID { ParamIDs::size, 1 },
+                                                             ParamIDs::size,
+                                                             juce::NormalisableRange { 0.0f, 100.0f, 0.01f, 1.0f },
+                                                             50.0f,
+                                                             percentageAttributes));
+
+    layout.add (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID { ParamIDs::damp, 1 },
+                                                             ParamIDs::damp,
+                                                             juce::NormalisableRange { 0.0f, 100.0f, 0.01f, 1.0f },
+                                                             50.0f,
+                                                             percentageAttributes));
+
+    layout.add (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID { ParamIDs::width, 1 },
+                                                             ParamIDs::width,
+                                                             juce::NormalisableRange { 0.0f, 100.0f, 0.01f, 1.0f },
+                                                             50.0f,
+                                                             percentageAttributes));
+
+    layout.add (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID { ParamIDs::mix, 1 },
+                                                             ParamIDs::mix,
+                                                             juce::NormalisableRange { 0.0f, 100.0f, 0.01f, 1.0f },
+                                                             50.0f,
+                                                             percentageAttributes));
+
+    layout.add (std::make_unique<juce::AudioParameterBool> (
+        juce::ParameterID { ParamIDs::freeze, 1 }, ParamIDs::freeze, false));
+
+    return layout;
+}
+
+
 
 //==============================================================================
 ReverbismAudioProcessor::ReverbismAudioProcessor()
@@ -93,8 +146,16 @@ void ReverbismAudioProcessor::changeProgramName (int index, const juce::String& 
 //==============================================================================
 void ReverbismAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
-    // Use this method as the place to do any pre-playback
-    // initialisation that you need..
+    //Create spec for Reverb object
+    juce::dsp::ProcessSpec spec {};
+
+    //Configure spec
+    spec.sampleRate = sampleRate;
+    spec.maximumBlockSize = static_cast<juce::uint32> (samplesPerBlock);
+    spec.numChannels = static_cast<juce::uint32> (getTotalNumOutputChannels());
+    
+    //Prepare Reverb object with spec
+    reverb.prepare (spec);
 }
 
 void ReverbismAudioProcessor::releaseResources()
@@ -129,33 +190,37 @@ bool ReverbismAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts
 }
 #endif
 
+//Update params
+void PluginProcessor::updateReverbParams()
+{
+    params.roomSize = size->get() * 0.01f; //? floating point formatting
+    params.damping = damp->get() * 0.01f;
+    params.width = width->get() * 0.01f;
+    params.wetLevel = mix->get() * 0.01f;
+    params.dryLevel = 1.0f - mix->get() * 0.01f;
+    params.freezeMode = freeze->get();
+
+    reverb.setParameters (params);
+}
+
+
 void ReverbismAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
 {
+    juce::ignoreUnused (midiMessages);
     juce::ScopedNoDenormals noDenormals;
-    auto totalNumInputChannels  = getTotalNumInputChannels();
-    auto totalNumOutputChannels = getTotalNumOutputChannels();
 
-    // In case we have more outputs than inputs, this code clears any output
-    // channels that didn't contain input data, (because these aren't
-    // guaranteed to be empty - they may contain garbage).
-    // This is here to avoid people getting screaming feedback
-    // when they first compile a plugin, but obviously you don't need to keep
-    // this code if your algorithm always overwrites all the output channels.
-    for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
-        buffer.clear (i, 0, buffer.getNumSamples());
+    updateReverbParams();
 
-    // This is the place where you'd normally do the guts of your plugin's
-    // audio processing...
-    // Make sure to reset the state if your inner loop is processing
-    // the samples and the outer loop is handling the channels.
-    // Alternatively, you can process the samples with the channels
-    // interleaved by keeping the same state.
-    for (int channel = 0; channel < totalNumInputChannels; ++channel)
-    {
-        auto* channelData = buffer.getWritePointer (channel);
+    //Wrap buffer into AudioBlock (todo: look into AudioBlock structure to see how it helps)
+    juce::dsp::AudioBlock<float> block (buffer);
+    
+    //Initialize object to overwrite input buffer
+    //instead of creating new output buffer
+    juce::dsp::ProcessContextReplacing ctx (block);
+    
+    //Apply reverb
+    reverb.process (ctx);
 
-        // ..do something to the data...
-    }
 }
 
 //==============================================================================
@@ -170,17 +235,24 @@ juce::AudioProcessorEditor* ReverbismAudioProcessor::createEditor()
 }
 
 //==============================================================================
+
+//store parameters in memory block
 void ReverbismAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
-    // You should use this method to store your parameters in the memory block.
-    // You could do that either as raw data, or use the XML or ValueTree classes
-    // as intermediaries to make it easy to save and load complex data.
+
+    //Initialize dynamically allocated memory buffer (a stream) rather than directly to a fixed-size memory block
+    juce::MemoryOutputStream mos (destData, true);
+    
+    //Write state to dynamically allocated memory buffer (a stream)
+    apvts.state.writeToStream (mos);
+
 }
 
+//restore parameters from memory black
 void ReverbismAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
 {
-    // You should use this method to restore your parameters from this memory block,
-    // whose contents will have been created by the getStateInformation() call.
+    if (const auto tree = juce::ValueTree::readFromData (data, static_cast<size_t> (sizeInBytes)); tree.isValid())
+        apvts.replaceState (tree);
 }
 
 //==============================================================================
