@@ -37,7 +37,20 @@ private:
     // access the processor object that created it.
     ReverbismAudioProcessor& audioProcessor;
     
-    RotarySlider roomSizeSlider, widthSlider, dampnessSlider, drywetSlider;
+    RotarySlider roomSizeSlider,
+                dampnessSlider,
+                wetSlider,
+                drySlider,
+                widthSlider;
+    
+    using APVTS = juce::AudioProcessorValueTreeState;
+    using Attachment = APVTS::SliderAttachment;
+    
+    Attachment  roomSizeSliderAttachment,
+                dampnessSliderAttachment,
+                wetSliderAttachment,
+                drySliderAttachment,
+                widthSliderAttachment;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ReverbismAudioProcessorEditor)
 };

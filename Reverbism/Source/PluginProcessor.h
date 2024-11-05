@@ -53,7 +53,22 @@ public:
     void getStateInformation (juce::MemoryBlock& destData) override;
     void setStateInformation (const void* data, int sizeInBytes) override;
 
+    using APVTS = juce::AudioProcessorValueTreeState;
+    
+    static APVTS::ParameterLayout createParameterLayout();
+    
+    APVTS apvts {*this, nullptr, "Parameters", createParameterLayout()};
+    
 private:
+    
+    juce::dsp::Reverb reverb;
+    
+    juce::AudioParameterFloat* roomSize {nullptr};
+    juce::AudioParameterFloat* dampness {nullptr};
+    juce::AudioParameterFloat* wet {nullptr};
+    juce::AudioParameterFloat* dry {nullptr};
+    juce::AudioParameterFloat* width {nullptr};
+    
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ReverbismAudioProcessor)
 };

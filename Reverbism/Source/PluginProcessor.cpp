@@ -22,6 +22,20 @@ ReverbismAudioProcessor::ReverbismAudioProcessor()
                        )
 #endif
 {
+    roomSize = dynamic_cast<juce::AudioParameterFloat*>(apvts.getParameter("Room Size"));
+    dampness = dynamic_cast<juce::AudioParameterFloat*>(apvts.getParameter("Dampness"));
+    wet = dynamic_cast<juce::AudioParameterFloat*>(apvts.getParameter("Wet"));
+    dry = dynamic_cast<juce::AudioParameterFloat*>(apvts.getParameter("Dry"));
+    width = dynamic_cast<juce::AudioParameterFloat*>(apvts.getParameter("Width"));
+    
+    
+    
+    reverb.setParameters({  apvts.getRawParameterValue("Room Size")->load(),
+                            apvts.getRawParameterValue("Dampness")->load(),
+                            apvts.getRawParameterValue("Wet")->load(),
+                            apvts.getRawParameterValue("Dry")->load(),
+                            apvts.getRawParameterValue("Width")->load(),
+                        });
 }
 
 ReverbismAudioProcessor::~ReverbismAudioProcessor()
@@ -95,6 +109,14 @@ void ReverbismAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBl
 {
     // Use this method as the place to do any pre-playback
     // initialisation that you need..
+    
+    juce::dsp::ProcessSpec spec;
+    spec.sampleRate = sampleRate;
+    spec.maximumBlockSize = samplesPerBlock;
+    spec.numChannels = getTotalNumOutputChannels();
+    
+    reverb.prepare(spec);
+    
 }
 
 void ReverbismAudioProcessor::releaseResources()
@@ -144,18 +166,17 @@ void ReverbismAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
     for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
         buffer.clear (i, 0, buffer.getNumSamples());
 
-    // This is the place where you'd normally do the guts of your plugin's
-    // audio processing...
-    // Make sure to reset the state if your inner loop is processing
-    // the samples and the outer loop is handling the channels.
-    // Alternatively, you can process the samples with the channels
-    // interleaved by keeping the same state.
-    for (int channel = 0; channel < totalNumInputChannels; ++channel)
-    {
-        auto* channelData = buffer.getWritePointer (channel);
-
-        // ..do something to the data...
-    }
+    juce::dsp::AudioBlock<float> block (buffer);
+    juce::dsp::ProcessContextReplacing<float> context (block);
+    
+    reverb.setParameters({  apvts.getRawParameterValue("Room Size")->load(),
+                            apvts.getRawParameterValue("Dampness")->load(),
+                            apvts.getRawParameterValue("Wet")->load(),
+                            apvts.getRawParameterValue("Dry")->load(),
+                            apvts.getRawParameterValue("Width")->load(),
+                        });
+    
+    reverb.process(context);
 }
 
 //==============================================================================
@@ -167,6 +188,7 @@ bool ReverbismAudioProcessor::hasEditor() const
 juce::AudioProcessorEditor* ReverbismAudioProcessor::createEditor()
 {
     return new ReverbismAudioProcessorEditor (*this);
+//    return new juce::GenericAudioProcessorEditor (*this);
 }
 
 //==============================================================================
@@ -175,12 +197,33 @@ void ReverbismAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
     // You should use this method to store your parameters in the memory block.
     // You could do that either as raw data, or use the XML or ValueTree classes
     // as intermediaries to make it easy to save and load complex data.
+    juce::MemoryOutputStream mos(destData, true);
+    apvts.state.writeToStream(mos);
 }
 
 void ReverbismAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
 {
     // You should use this method to restore your parameters from this memory block,
     // whose contents will have been created by the getStateInformation() call.
+    auto tree = juce::ValueTree::readFromData(data, sizeInBytes);
+    if(tree.isValid())
+    {
+        apvts.replaceState(tree);
+    }
+}
+
+juce::AudioProcessorValueTreeState::ParameterLayout ReverbismAudioProcessor::createParameterLayout()
+{
+    using namespace juce;
+    APVTS::ParameterLayout layout;
+    
+    layout.add(std::make_unique<AudioParameterFloat>(ParameterID{"Room Size", 1}, "Room Size", NormalisableRange<float>(0.f, 1.f, 0.05f, 1.f), 0.5f));
+    layout.add(std::make_unique<AudioParameterFloat>(ParameterID{"Width", 1}, "Width", NormalisableRange<float>(0.f, 1.f, 0.05f, 1.f), 0.5f));
+    layout.add(std::make_unique<AudioParameterFloat>(ParameterID{"Dampness", 1}, "Dampness", NormalisableRange<float>(0.f, 1.f, 0.05f, 1.f), 0.5f));
+    layout.add(std::make_unique<AudioParameterFloat>(ParameterID{"Dry", 1}, "Dry", NormalisableRange<float>(0.f, 1.f, 0.05f, 1.f), 0.5f));
+    layout.add(std::make_unique<AudioParameterFloat>(ParameterID{"Wet", 1}, "Wet", NormalisableRange<float>(0.f, 1.f, 0.05f, 1.f), 0.5f));
+    
+    return layout;
 }
 
 //==============================================================================

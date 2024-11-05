@@ -11,15 +11,21 @@
 
 //==============================================================================
 ReverbismAudioProcessorEditor::ReverbismAudioProcessorEditor (ReverbismAudioProcessor& p)
-    : AudioProcessorEditor (&p), audioProcessor (p)
+    : AudioProcessorEditor (&p), audioProcessor (p),
+    roomSizeSliderAttachment(audioProcessor.apvts, "Room Size", roomSizeSlider),
+    dampnessSliderAttachment(audioProcessor.apvts, "Dampness", dampnessSlider),
+    wetSliderAttachment(audioProcessor.apvts, "Wet", wetSlider),
+    drySliderAttachment(audioProcessor.apvts, "Dry", drySlider),
+    widthSliderAttachment(audioProcessor.apvts, "Width", widthSlider)
 {
     // Make sure that before the constructor has finished, you've set the
     // editor's size to whatever you need it to be.
     
     addAndMakeVisible(&roomSizeSlider);
-    addAndMakeVisible(&widthSlider);
     addAndMakeVisible(&dampnessSlider);
-    addAndMakeVisible(&drywetSlider);
+    addAndMakeVisible(&wetSlider);
+    addAndMakeVisible(&drySlider);
+    addAndMakeVisible(&widthSlider);
     
     setSize (600, 250);
 }
@@ -46,8 +52,9 @@ void ReverbismAudioProcessorEditor::resized()
     bounds.removeFromLeft(bounds.getWidth() * 0.1);
     bounds.removeFromRight(bounds.getWidth() * 0.111);
 
-    roomSizeSlider.setBounds(bounds.removeFromLeft(bounds.getWidth() * 0.25));
-    widthSlider.setBounds(bounds.removeFromLeft(bounds.getWidth() * 0.33));
-    dampnessSlider.setBounds(bounds.removeFromLeft(bounds.getWidth() * 0.5));
-    drywetSlider.setBounds(bounds);
+    roomSizeSlider.setBounds(bounds.removeFromLeft(bounds.getWidth() * 0.20));
+    dampnessSlider.setBounds(bounds.removeFromLeft(bounds.getWidth() * 0.25));
+    wetSlider.setBounds(bounds.removeFromLeft(bounds.getWidth() * 0.33));
+    drySlider.setBounds(bounds.removeFromLeft(bounds.getWidth() * 0.5));
+    widthSlider.setBounds(bounds);
 }
